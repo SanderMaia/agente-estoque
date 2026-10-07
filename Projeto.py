@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI
 
-NOME_EMPRESA = "DPCTRANSPORTE"
+NOME_EMPRESA = "DPCNET"
 LOGO = "logo.png"
 ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
@@ -158,14 +158,13 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 with st.sidebar:
     if TEM_LOGO:
         st.image(LOGO, use_container_width=True)
-    st.caption("Painel Gerencial")
+    st.caption("Painel de estoque com IA")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
-     limite = st.number_input("Alerta de estoque baixo (até)", min_value=0, max_value=100, value=5)
-    st.divider()
     busca = st.text_input("Buscar produto")
-    
+    limite = st.number_input("Alerta de estoque baixo (até)", min_value=0, max_value=100, value=5)
+    st.divider()
     if st.button("🔄 Atualizar estoque", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
