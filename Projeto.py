@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI
 
-NOME_EMPRESA = "DPCNET"
+NOME_EMPRESA = "DPCTRANSPORTE"
 LOGO = "logo.png"
 ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
@@ -133,7 +133,7 @@ C_PROD = achar(bruto, "Produto")
 C_SETOR = achar(bruto, "Setor")
 C_QTD = achar(bruto, "Qtd", "Quantidade", "Quatidade")
 C_UNIT = achar(bruto, "Valor Unitario")
-C_TOTAL = achar(bruto, "valor Total")
+C_TOTAL = achar(bruto, "Total")
 
 if not (C_PROD and C_QTD and (C_UNIT or C_TOTAL)):
     st.error("Não encontrei as colunas Produto, Qtd e Valor Unitario/Total na planilha.")
@@ -158,13 +158,12 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 with st.sidebar:
     if TEM_LOGO:
         st.image(LOGO, use_container_width=True)
-    st.caption("Painel de estoque com IA")
+    st.caption("Painel Gerncial")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
     busca = st.text_input("Buscar produto")
-    limite = st.number_input("Alerta de estoque baixo (até)", min_value=0, max_value=100, value=5)
-    st.divider()
+    
     if st.button("🔄 Atualizar estoque", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -212,7 +211,7 @@ with aba_painel:
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Valor do estoque", brl(df_f["valor total"].sum()))
+    k1.metric("Valor do estoque", brl(df_f["total"].sum()))
     k2.metric("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", f"{df_f['qtd'].sum():,.0f}".replace(",", "."))
     k4.metric("Zerados", f"{len(zerados)}")
@@ -229,7 +228,7 @@ with aba_painel:
     with g1:
         st.subheader("Valor por setor")
         por_setor = df_f.groupby("setor", as_index=False)["total"].sum()
-        if por_setor["valor total"].sum() > 0:
+        if por_setor["total"].sum() > 0:
             rosca = alt.Chart(por_setor).mark_arc(innerRadius=70).encode(
                 theta=alt.Theta("total:Q"),
                 color=alt.Color("setor:N", title="Setor"),
