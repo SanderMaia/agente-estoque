@@ -1,29 +1,18 @@
-#titulo 
-#input do chat ( campo de mansagem)
-#cada mensagem que o usuario enviar:
-     #mostrar a mensagem que o usuario enviar no chat
-    # pegar a pergunta e enviar para uma IA responder
-    # exibir a resposta da IA na tela 
-#streamlit run projeto.py
-
-# Streamlit -> apenas com python cria o front-end e o backend
- # a IA que será usada : OpenAI
-                   
 import os
 import time
 import streamlit as st
 import pandas as pd
-from openai import OpenAI, InternalServerError, RateLimitError , NotFoundError
+from openai import OpenAI, InternalServerError, RateLimitError, NotFoundError
 
-NOME_EMPRESA = "EstoquIA-Transporte "
+NOME_EMPRESA = "DPCNET"
 LOGO = "logo.png"
 ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
 TEM_ICONE = os.path.exists(ICONE)
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | EstoquIA",
-    page_icon=LOGO if TEM_LOGO else "🚚",
+    page_title=f"{NOME_EMPRESA} | Assistente de Estoque",
+    page_icon=ICONE if TEM_ICONE else "🚚",
     layout="centered",
 )
 
@@ -43,7 +32,8 @@ modelo_ia = OpenAI(
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 URL_CSV = st.secrets["URL_CSV"]
-MODELOS = ["gemini-3.1-flash", "gemini-3.1-flash-lite"]  # principal e reserva
+MODELOS = ["gemini-3.8-flash", "gemini-3.1-flash-lite" ,"gemini -3.5-flash-lite"]  # principal e reserva
+
 
 @st.cache_data(ttl=60)
 def carregar_estoque():
@@ -51,6 +41,7 @@ def carregar_estoque():
     df.columns = df.columns.str.strip()
     df = df.dropna(how="all")
     return df
+
 
 def abrir_resposta(mensagens):
     """Abre a resposta em streaming. Retorna (stream, modelo) ou (None, None)."""
@@ -61,34 +52,44 @@ def abrir_resposta(mensagens):
                     messages=mensagens,
                     model=modelo,
                     stream=True,
-                    **extra,  # menos "pensamento" = mais rápido
+                    **extra,
                 )
                 return stream, modelo
             except NotFoundError:
                 break  # modelo indisponível: passa para o próximo
             except (InternalServerError, RateLimitError):
                 time.sleep(1)
+            except Exception:
+                continue  # outro erro (ex.: parâmetro não aceito): tenta sem ele
     return None, None
+
+
+def texto_do_stream(stream):
+    for pedaco in stream:
+        if pedaco.choices and pedaco.choices[0].delta.content:
+            yield pedaco.choices[0].delta.content
 
 
 estoque = carregar_estoque()
 
+# Totais calculados pelo pandas (mais rápidos e confiáveis que a IA somando)
 resumo = f"Total de produtos cadastrados: {len(estoque)}\n"
 if "Total" in estoque.columns:
     total = pd.to_numeric(estoque["Total"], errors="coerce").sum()
     resumo += f"Valor total do estoque: R$ {total:,.2f}\n"
 
-
 instrucoes = f"""Você é o assistente de estoque da {NOME_EMPRESA}.
-Você TEM acesso aos dados abaixo, que vieram da planilha de estoque.
-Responda em português, de forma curta e direta, usando SOMENTE esses dados.
+Responda em português, em poucas linhas, usando SOMENTE os dados abaixo.
 Se um produto não estiver na tabela, diga que não encontrou. Não invente valores.
-Para totais e somas, calcule a partir da tabela.
+Para totais gerais, use o RESUMO. Para outras contas, calcule a partir da tabela.
 
+RESUMO:
+{resumo}
 ESTOQUE ATUAL (CSV):
 {estoque.to_csv(index=False)}
 """
 
+# --- Barra lateral ---
 with st.sidebar:
     if TEM_LOGO:
         st.image(LOGO, use_container_width=True)
@@ -102,9 +103,11 @@ with st.sidebar:
     if st.button("🗑️ Limpar conversa", use_container_width=True):
         st.session_state["lista_mensagens"] = []
         st.rerun()
+
+# --- Cabeçalho ---
 if TEM_LOGO:
     st.image(LOGO, width=260)
-st.title("EstoquIA DPC")
+st.title("Assistente de Estoque")
 st.caption("Pergunte sobre quantidades, valores, setores e movimentações.")
 
 if "lista_mensagens" not in st.session_state:
@@ -112,10 +115,12 @@ if "lista_mensagens" not in st.session_state:
 
 AVATAR_IA = ICONE if TEM_ICONE else "🤖"
 
+# --- Histórico da conversa ---
 for mensagem in st.session_state["lista_mensagens"]:
     avatar = AVATAR_IA if mensagem["role"] == "assistant" else None
     st.chat_message(mensagem["role"], avatar=avatar).write(mensagem["content"])
 
+# --- Perguntas rápidas (só aparecem com a conversa vazia) ---
 pergunta_rapida = None
 if not st.session_state["lista_mensagens"]:
     st.write("**Experimente perguntar:**")
@@ -130,7 +135,8 @@ if not st.session_state["lista_mensagens"]:
 texto_usuario = st.chat_input("Digite sua pergunta sobre o estoque...")
 if pergunta_rapida:
     texto_usuario = pergunta_rapida
-     
+
+# --- Nova pergunta ---
 if texto_usuario:
     st.chat_message("user").write(texto_usuario)
     st.session_state["lista_mensagens"].append(
