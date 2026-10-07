@@ -15,9 +15,9 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI, InternalServerError, RateLimitError
 
-NOME_EMPRESA = "DpcIA"
+NOME_EMPRESA = "DPCNET"
 LOGO = "logo.png"
-iCONE = "ícone.png"
+ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
 TEM_ICONE = os.path.exists(ICONE)
 
@@ -91,19 +91,15 @@ with st.sidebar:
     if st.button("🗑️ Limpar conversa", use_container_width=True):
         st.session_state["lista_mensagens"] = []
         st.rerun()
-
-col_logo, col_titulo = st.columns([1, 5], vertical_alignment="center")
-with col_logo:
-    if TEM_LOGO:
-        st.image(LOGO, width=80)
-with col_titulo:
-    st.title("Assistente de Estoque")
-    st.caption("Pergunte sobre quantidades, valores, setores e movimentações.")
+if TEM_LOGO:
+    st.image(LOGO, width=260)
+st.title("Assistente de Estoque")
+st.caption("Pergunte sobre quantidades, valores, setores e movimentações.")
 
 if "lista_mensagens" not in st.session_state:
     st.session_state["lista_mensagens"] = []
 
-AVATAR_IA = LOGO if TEM_LOGO else "🤖"
+AVATAR_IA = ICONE if TEM_ICONE else "🤖"
 
 for mensagem in st.session_state["lista_mensagens"]:
     avatar = AVATAR_IA if mensagem["role"] == "assistant" else None
