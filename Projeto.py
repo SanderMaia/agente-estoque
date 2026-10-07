@@ -18,7 +18,7 @@ VERDE = "#3ec252"
 VERMELHO = "#e5484d"
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | Painel de Estoque",
+    page_title=f"{NOME_EMPRESA} | Painel Gerencial",
     page_icon=ICONE if TEM_ICONE else "🚚",
     layout="wide",
 )
@@ -158,7 +158,7 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 with st.sidebar:
     if TEM_LOGO:
         st.image(LOGO, use_container_width=True)
-    st.caption("Painel de estoque com IA")
+    st.caption("Na Estada com Excelência")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
