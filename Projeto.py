@@ -189,7 +189,7 @@ with st.sidebar:
 # --- Cabeçalho ---
 if TEM_LOGO:
     st.image(LOGO, width=260)
-st.title("Assistente de Estoque")
+st.title("EstoqIA-DPC")
 st.caption("Pergunte sobre quantidades, valores, setores e movimentações.")
 
 if "lista_mensagens" not in st.session_state:
