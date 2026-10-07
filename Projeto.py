@@ -43,9 +43,6 @@ modelo_ia = OpenAI(
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 URL_CSV = st.secrets["URL_CSV"]
-from openai import OpenAI, InternalServerError, RateLimitError, NotFoundError
-
-
 def chamar_ia(mensagens):
     for modelo in MODELOS:
         for tentativa in range(3):
