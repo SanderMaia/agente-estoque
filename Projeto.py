@@ -22,7 +22,7 @@ TEM_LOGO = os.path.exists(LOGO)
 TEM_ICONE = os.path.exists(ICONE)
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | Assistente de Estoque",
+    page_title=f"{NOME_EMPRESA} | EstoquIA",
     page_icon=LOGO if TEM_LOGO else "🚚",
     layout="centered",
 )
