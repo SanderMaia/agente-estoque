@@ -13,7 +13,7 @@ import os
 import time
 import streamlit as st
 import pandas as pd
-from openai import OpenAI, InternalServerError, RateLimitError
+from openai import OpenAI, InternalServerError, RateLimitError , NotFoundError
 
 NOME_EMPRESA = "EstoquIA-Transporte "
 LOGO = "logo.png"
@@ -55,13 +55,13 @@ def carregar_estoque():
 def abrir_resposta(mensagens):
     """Abre a resposta em streaming. Retorna (stream, modelo) ou (None, None)."""
     for modelo in MODELOS:
-        for tentativa in range(2):
+        for extra in ({"reasoning_effort": "low"}, {}):  # com e sem raciocínio reduzido
             try:
                 stream = modelo_ia.chat.completions.create(
                     messages=mensagens,
                     model=modelo,
                     stream=True,
-                    reasoning_effort="low",  # menos "pensamento" = mais rápido
+                    **extra,  # menos "pensamento" = mais rápido
                 )
                 return stream, modelo
             except NotFoundError:
