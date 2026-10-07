@@ -146,8 +146,8 @@ if texto_usuario:
         if resposta_ia is None:
             st.error("O serviço de IA está sobrecarregado. Tente de novo em alguns minutos.")
         else:
-            texto_ia = resposta_ia.choices[0].message.content
-            st.write(texto_ia)
+            texto_ia = st.write_stream(texto_do_stream(stream))
+            st.caption(f"⏱ {time.time() - inicio:.1f}s · {modelo_usado}")
             st.session_state["lista_mensagens"].append(
                 {"role": "assistant", "content": texto_ia}
             )
