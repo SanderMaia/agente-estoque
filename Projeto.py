@@ -1,8 +1,17 @@
+import io
 import os
 import time
+import requests
 import streamlit as st
 import pandas as pd
-from openai import OpenAI, InternalServerError, RateLimitError, NotFoundError
+from openai import (
+    OpenAI,
+    InternalServerError,
+    RateLimitError,
+    NotFoundError,
+    APITimeoutError,
+    APIConnectionError,
+)
 
 NOME_EMPRESA = "DPCNET"
 LOGO = "logo.png"
@@ -27,17 +36,22 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# timeout: espera no máximo 25 s por tentativa; max_retries=0: sem tentativas escondidas
 modelo_ia = OpenAI(
     api_key=st.secrets["GEMINI_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    timeout=25.0,
+    max_retries=0,
 )
 URL_CSV = st.secrets["URL_CSV"]
-MODELOS = ["gemini -3.5-flash-lite", "gemini-3.8-flash"]  # principal e reserva
+MODELOS = ["gemini-3.1-flash-lite", "gemini-3.5-flash"]  # mais rápido primeiro
 
 
 @st.cache_data(ttl=60)
 def carregar_estoque():
-    df = pd.read_csv(URL_CSV)
+    resp = requests.get(URL_CSV, timeout=15)
+    resp.raise_for_status()
+    df = pd.read_csv(io.StringIO(resp.content.decode("utf-8")))
     df.columns = df.columns.str.strip()
     df = df.dropna(how="all")
     return df
@@ -46,7 +60,7 @@ def carregar_estoque():
 def abrir_resposta(mensagens):
     """Abre a resposta em streaming. Retorna (stream, modelo) ou (None, None)."""
     for modelo in MODELOS:
-        for extra in ({"reasoning_effort": "low"}, {}):  # com e sem raciocínio reduzido
+        for extra in ({"reasoning_effort": "low"}, {}):
             try:
                 stream = modelo_ia.chat.completions.create(
                     messages=mensagens,
@@ -56,11 +70,11 @@ def abrir_resposta(mensagens):
                 )
                 return stream, modelo
             except NotFoundError:
-                break  # modelo indisponível: passa para o próximo
-            except (InternalServerError, RateLimitError):
-                time.sleep(1)
+                break  # modelo indisponível: próximo modelo
+            except (InternalServerError, RateLimitError, APITimeoutError, APIConnectionError):
+                break  # lento ou fora do ar: não insiste, vai para o próximo modelo
             except Exception:
-                continue  # outro erro (ex.: parâmetro não aceito): tenta sem ele
+                continue  # parâmetro não aceito: tenta sem ele
     return None, None
 
 
@@ -70,18 +84,27 @@ def texto_do_stream(stream):
             yield pedaco.choices[0].delta.content
 
 
-estoque = carregar_estoque()
+try:
+    estoque = carregar_estoque()
+except Exception:
+    st.error("Não consegui ler a planilha agora. Tente de novo em instantes.")
+    st.stop()
 
-# Totais calculados pelo pandas (mais rápidos e confiáveis que a IA somando)
+# Totais calculados pelo pandas (rápidos e confiáveis)
 resumo = f"Total de produtos cadastrados: {len(estoque)}\n"
 if "Total" in estoque.columns:
-    total = pd.to_numeric(estoque["Total"], errors="coerce").sum()
-    resumo += f"Valor total do estoque: R$ {total:,.2f}\n"
+    estoque["Total"] = pd.to_numeric(estoque["Total"], errors="coerce")
+    resumo += f"Valor total do estoque: R$ {estoque['Total'].sum():,.2f}\n"
+    if "Setor" in estoque.columns:
+        por_setor = estoque.groupby("Setor")["Total"].sum().sort_values(ascending=False)
+        resumo += "Valor total por setor:\n"
+        for setor, valor in por_setor.items():
+            resumo += f"- {setor}: R$ {valor:,.2f}\n"
 
 instrucoes = f"""Você é o assistente de estoque da {NOME_EMPRESA}.
 Responda em português, em poucas linhas, usando SOMENTE os dados abaixo.
 Se um produto não estiver na tabela, diga que não encontrou. Não invente valores.
-Para totais gerais, use o RESUMO. Para outras contas, calcule a partir da tabela.
+Para totais gerais ou por setor, use o RESUMO. Para outras contas, calcule a partir da tabela.
 
 RESUMO:
 {resumo}
@@ -115,12 +138,10 @@ if "lista_mensagens" not in st.session_state:
 
 AVATAR_IA = ICONE if TEM_ICONE else "🤖"
 
-# --- Histórico da conversa ---
 for mensagem in st.session_state["lista_mensagens"]:
     avatar = AVATAR_IA if mensagem["role"] == "assistant" else None
     st.chat_message(mensagem["role"], avatar=avatar).write(mensagem["content"])
 
-# --- Perguntas rápidas (só aparecem com a conversa vazia) ---
 pergunta_rapida = None
 if not st.session_state["lista_mensagens"]:
     st.write("**Experimente perguntar:**")
@@ -136,7 +157,6 @@ texto_usuario = st.chat_input("Digite sua pergunta sobre o estoque...")
 if pergunta_rapida:
     texto_usuario = pergunta_rapida
 
-# --- Nova pergunta ---
 if texto_usuario:
     st.chat_message("user").write(texto_usuario)
     st.session_state["lista_mensagens"].append(
@@ -145,15 +165,19 @@ if texto_usuario:
 
     with st.chat_message("assistant", avatar=AVATAR_IA):
         inicio = time.time()
-        stream, modelo_usado = abrir_resposta(
-            [{"role": "system", "content": instrucoes}]
-            + st.session_state["lista_mensagens"]
-        )
+        with st.spinner("Consultando o estoque..."):
+            stream, modelo_usado = abrir_resposta(
+                [{"role": "system", "content": instrucoes}]
+                + st.session_state["lista_mensagens"]
+            )
         if stream is None:
             st.error("A IA não respondeu agora. Tente de novo em alguns minutos.")
         else:
-            texto_ia = st.write_stream(texto_do_stream(stream))
-            st.caption(f"⏱ {time.time() - inicio:.1f}s · {modelo_usado}")
-            st.session_state["lista_mensagens"].append(
-                {"role": "assistant", "content": texto_ia}
-            )
+            try:
+                texto_ia = st.write_stream(texto_do_stream(stream))
+                st.caption(f"⏱ {time.time() - inicio:.1f}s · {modelo_usado}")
+                st.session_state["lista_mensagens"].append(
+                    {"role": "assistant", "content": texto_ia}
+                )
+            except Exception:
+                st.error("A resposta foi interrompida. Tente de novo.")
