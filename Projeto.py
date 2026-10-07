@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI, InternalServerError, RateLimitError
 
-NOME_EMPRESA = "DPCNET"
+NOME_EMPRESA = "OficInA-DPC "
 LOGO = "logo.png"
 ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
