@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 from openai import (
     OpenAI,
+    BadRequestError,
     InternalServerError,
     RateLimitError,
     NotFoundError,
@@ -39,19 +40,18 @@ st.markdown(
 modelo_ia = OpenAI(
     api_key=st.secrets["GEMINI_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-    timeout=30.0,
+    timeout=60.0,
     max_retries=0,
 )
 URL_CSV = st.secrets["URL_CSV"]
 
-# Ordem: o de maior limite por minuto primeiro (Flash Lite = 15 RPM no plano gratuito)
 MODELOS_PREFERIDOS = ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash"]
 EXCLUIR = ("image", "live", "audio", "tts", "embedding", "vision", "robotics", "computer")
+LIMITE_TOTAL = 120  # segundos máximos por pergunta
 
 
 @st.cache_data(ttl=600)
 def listar_modelos():
-    """Pergunta ao Google quais modelos esta chave pode usar."""
     try:
         nomes = [m.id.replace("models/", "") for m in modelo_ia.models.list()]
         return nomes, ""
@@ -81,23 +81,35 @@ def carregar_estoque():
 
 def descrever_erro(modelo, e):
     codigo = getattr(e, "status_code", "")
-    return f"{modelo} -> {type(e).__name__} {codigo}: {str(e)[:300]}"
+    return f"{modelo} -> {type(e).__name__} {codigo}: {str(e)[:200]}"
 
 
 def abrir_resposta(mensagens, modelos):
-    """Uma única tentativa por modelo. Retorna (stream, modelo_usado, erros)."""
+    """Duas rodadas pelos modelos, com limite total de tempo.
+    Retorna (stream, modelo_usado, erros)."""
     erros = []
-    for modelo in modelos:
-        try:
-            stream = modelo_ia.chat.completions.create(
-                messages=mensagens, model=modelo, stream=True
-            )
-            return stream, modelo, erros
-        except (NotFoundError, InternalServerError, RateLimitError,
-                APITimeoutError, APIConnectionError) as e:
-            erros.append(descrever_erro(modelo, e))
-        except Exception as e:
-            erros.append(descrever_erro(modelo, e))
+    inicio = time.time()
+    for rodada in range(2):
+        for modelo in modelos:
+            if time.time() - inicio > LIMITE_TOTAL:
+                return None, None, erros
+            for extra in ({"reasoning_effort": "low"}, {}):
+                try:
+                    stream = modelo_ia.chat.completions.create(
+                        messages=mensagens, model=modelo, stream=True, **extra
+                    )
+                    return stream, modelo, erros
+                except BadRequestError as e:
+                    erros.append(descrever_erro(modelo, e))
+                    continue  # parâmetro não aceito: tenta sem ele
+                except (NotFoundError, InternalServerError, RateLimitError,
+                        APITimeoutError, APIConnectionError) as e:
+                    erros.append(descrever_erro(modelo, e))
+                    break  # próximo modelo
+                except Exception as e:
+                    erros.append(descrever_erro(modelo, e))
+                    break
+        time.sleep(3)
     return None, None, erros
 
 
@@ -105,6 +117,21 @@ def texto_do_stream(stream):
     for pedaco in stream:
         if pedaco.choices and pedaco.choices[0].delta.content:
             yield pedaco.choices[0].delta.content
+
+
+def testar_modelos(modelos):
+    """Manda um pedido mínimo a cada modelo e mede o tempo."""
+    saida = []
+    for m in modelos:
+        t = time.time()
+        try:
+            modelo_ia.chat.completions.create(
+                messages=[{"role": "user", "content": "Responda só: ok"}], model=m
+            )
+            saida.append(f"{m}: OK em {time.time() - t:.1f}s")
+        except Exception as e:
+            saida.append(f"{m}: {type(e).__name__} após {time.time() - t:.1f}s")
+    return saida
 
 
 try:
@@ -154,6 +181,10 @@ with st.sidebar:
         st.write("Modelos que serão usados:", MODELOS)
         if erro_lista:
             st.write("Não consegui listar os modelos:", erro_lista)
+        if st.button("Testar velocidade da IA", use_container_width=True):
+            with st.spinner("Testando (pode levar até 3 minutos)..."):
+                for linha in testar_modelos(MODELOS):
+                    st.write(linha)
 
 # --- Cabeçalho ---
 if TEM_LOGO:
@@ -193,21 +224,18 @@ if texto_usuario:
 
     with st.chat_message("assistant", avatar=AVATAR_IA):
         inicio = time.time()
-        with st.spinner("Consultando o estoque..."):
+        with st.spinner("Consultando o estoque... se o Google estiver sobrecarregado, pode levar até 2 minutos."):
             stream, modelo_usado, erros = abrir_resposta(
                 [{"role": "system", "content": instrucoes}]
                 + st.session_state["lista_mensagens"],
                 MODELOS,
             )
         if stream is None:
-            if any("RateLimitError" in e or " 429" in e for e in erros):
-                st.warning(
-                    "Limite de pedidos por minuto do plano gratuito atingido. "
-                    "Aguarde cerca de 1 minuto e pergunte de novo."
-                )
-            else:
-                st.error("A IA não respondeu agora. Detalhes do erro abaixo:")
-            st.code("\n".join(erros) or "Nenhum modelo disponível para esta chave.")
+            st.warning(
+                "O serviço de IA do Google está lento ou sobrecarregado agora. "
+                "Tente de novo em alguns minutos."
+            )
+            st.code("\n".join(erros[-6:]) or "Nenhum modelo disponível para esta chave.")
         else:
             try:
                 texto_ia = st.write_stream(texto_do_stream(stream))
