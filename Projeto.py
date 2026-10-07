@@ -178,9 +178,9 @@ if busca:
 
 # ---------- Contexto da IA (sempre o estoque completo) ----------
 resumo = (f"Total de produtos: {len(d)}\n"
-          f"Valor total do estoque: {brl(d['valor total'].sum())}\n"
+          f"Valor total do estoque: {brl(d['total'].sum())}\n"
           f"Valor por setor:\n")
-for setor, valor in d.groupby("setor")["valor total"].sum().sort_values(ascending=False).items():
+for setor, valor in d.groupby("setor")["total"].sum().sort_values(ascending=False).items():
     resumo += f"- {setor}: {brl(valor)}\n"
 
 instrucoes = f"""Você é o assistente de estoque da {NOME_EMPRESA}.
