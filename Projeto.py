@@ -133,7 +133,7 @@ C_PROD = achar(bruto, "Produto")
 C_SETOR = achar(bruto, "Setor")
 C_QTD = achar(bruto, "Qtd", "Quantidade", "Quatidade")
 C_UNIT = achar(bruto, "Valor Unitario")
-C_TOTAL = achar(bruto, "Total")
+C_TOTAL = achar(bruto, "valor Total")
 
 if not (C_PROD and C_QTD and (C_UNIT or C_TOTAL)):
     st.error("Não encontrei as colunas Produto, Qtd e Valor Unitario/Total na planilha.")
