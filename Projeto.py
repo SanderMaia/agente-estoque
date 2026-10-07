@@ -158,7 +158,7 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 with st.sidebar:
     if TEM_LOGO:
         st.image(LOGO, use_container_width=True)
-    st.caption("Na Estada com Excelência")
+    st.caption("Na Estrada com Excelência")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
@@ -211,7 +211,7 @@ with aba_painel:
     zerados = df_f[df_f["qtd"] <= 0]
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
-    k1, k2, k3, k4, k5 = st.columns([2.5,1,1,0.7,0.9])
+    k1, k2, k3, k4, k5 = st.columns([2,1,1,0.7,0.9])
     k1.metric("Valor do estoque", brl(df_f["total"].sum()))
     k2.metric("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", f"{df_f['qtd'].sum():,.0f}".replace(",", "."))
