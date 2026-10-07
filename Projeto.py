@@ -156,12 +156,13 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 
 # ---------- Barra lateral ----------
 with st.sidebar:
-    if TEM_LOGO:
-        st.image(LOGO, use_container_width=True)
-    st.caption("Painel Gerncial")
+    if 
+    st.caption("Painel Gerencial")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
+     limite = st.number_input("Alerta de estoque baixo (até)", min_value=0, max_value=100, value=5)
+    st.divider()
     busca = st.text_input("Buscar produto")
     
     if st.button("🔄 Atualizar estoque", use_container_width=True):
