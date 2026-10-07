@@ -130,7 +130,7 @@ if not st.session_state["lista_mensagens"]:
 texto_usuario = st.chat_input("Digite sua pergunta sobre o estoque...")
 if pergunta_rapida:
     texto_usuario = pergunta_rapida
-
+     
 if texto_usuario:
     st.chat_message("user").write(texto_usuario)
     st.session_state["lista_mensagens"].append(
@@ -138,13 +138,13 @@ if texto_usuario:
     )
 
     with st.chat_message("assistant", avatar=AVATAR_IA):
-        with st.spinner("Consultando o estoque..."):
-            resposta_ia = chamar_ia(
-                [{"role": "system", "content": instrucoes}]
-                + st.session_state["lista_mensagens"]
-            )
-        if resposta_ia is None:
-            st.error("O serviço de IA está sobrecarregado. Tente de novo em alguns minutos.")
+        inicio = time.time()
+        stream, modelo_usado = abrir_resposta(
+            [{"role": "system", "content": instrucoes}]
+            + st.session_state["lista_mensagens"]
+        )
+        if stream is None:
+            st.error("A IA não respondeu agora. Tente de novo em alguns minutos.")
         else:
             texto_ia = st.write_stream(texto_do_stream(stream))
             st.caption(f"⏱ {time.time() - inicio:.1f}s · {modelo_usado}")
