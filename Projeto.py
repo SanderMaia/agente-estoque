@@ -178,9 +178,9 @@ if busca:
 
 # ---------- Contexto da IA (sempre o estoque completo) ----------
 resumo = (f"Total de produtos: {len(d)}\n"
-          f"Valor total do estoque: {brl(d['total'].sum())}\n"
+          f"Valor total do estoque: {brl(d['valor total'].sum())}\n"
           f"Valor por setor:\n")
-for setor, valor in d.groupby("setor")["total"].sum().sort_values(ascending=False).items():
+for setor, valor in d.groupby("setor")["valor total"].sum().sort_values(ascending=False).items():
     resumo += f"- {setor}: {brl(valor)}\n"
 
 instrucoes = f"""Você é o assistente de estoque da {NOME_EMPRESA}.
@@ -212,7 +212,7 @@ with aba_painel:
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Valor do estoque", brl(df_f["total"].sum()))
+    k1.metric("Valor do estoque", brl(df_f["valor total"].sum()))
     k2.metric("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", f"{df_f['qtd'].sum():,.0f}".replace(",", "."))
     k4.metric("Zerados", f"{len(zerados)}")
@@ -229,7 +229,7 @@ with aba_painel:
     with g1:
         st.subheader("Valor por setor")
         por_setor = df_f.groupby("setor", as_index=False)["total"].sum()
-        if por_setor["total"].sum() > 0:
+        if por_setor["valor total"].sum() > 0:
             rosca = alt.Chart(por_setor).mark_arc(innerRadius=70).encode(
                 theta=alt.Theta("total:Q"),
                 color=alt.Color("setor:N", title="Setor"),
