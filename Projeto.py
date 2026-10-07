@@ -43,7 +43,21 @@ modelo_ia = OpenAI(
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 URL_CSV = st.secrets["URL_CSV"]
-MODELOS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+from openai import OpenAI, InternalServerError, RateLimitError, NotFoundError
+
+
+def chamar_ia(mensagens):
+    for modelo in MODELOS:
+        for tentativa in range(3):
+            try:
+                return modelo_ia.chat.completions.create(
+                    messages=mensagens, model=modelo
+                )
+            except NotFoundError:
+                break  # modelo indisponível: passa direto para o próximo
+            except (InternalServerError, RateLimitError):
+                time.sleep(2 * (tentativa + 1))
+    return None
 
 
 @st.cache_data(ttl=60)
