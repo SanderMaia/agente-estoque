@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI, InternalServerError, RateLimitError
 
-NOME_EMPRESA = "OficInA-DPC "
+NOME_EMPRESA = "EstoquIA-Transporte "
 LOGO = "logo.png"
 ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
@@ -92,7 +92,7 @@ with st.sidebar:
         st.rerun()
 if TEM_LOGO:
     st.image(LOGO, width=260)
-st.title("Assistente de Estoque")
+st.title("EstoquIA DPC")
 st.caption("Pergunte sobre quantidades, valores, setores e movimentações.")
 
 if "lista_mensagens" not in st.session_state:
