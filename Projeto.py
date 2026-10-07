@@ -52,20 +52,32 @@ def carregar_estoque():
     df = df.dropna(how="all")
     return df
 
-
-def chamar_ia(mensagens):
+def abrir_resposta(mensagens):
+    """Abre a resposta em streaming. Retorna (stream, modelo) ou (None, None)."""
     for modelo in MODELOS:
-        for tentativa in range(3):
+        for tentativa in range(2):
             try:
-                return modelo_ia.chat.completions.create(
-                    messages=mensagens, model=modelo
+                stream = modelo_ia.chat.completions.create(
+                    messages=mensagens,
+                    model=modelo,
+                    stream=True,
+                    reasoning_effort="low",  # menos "pensamento" = mais rápido
                 )
+                return stream, modelo
+            except NotFoundError:
+                break  # modelo indisponível: passa para o próximo
             except (InternalServerError, RateLimitError):
-                time.sleep(2 * (tentativa + 1))
-    return None
+                time.sleep(1)
+    return None, None
 
 
 estoque = carregar_estoque()
+
+resumo = f"Total de produtos cadastrados: {len(estoque)}\n"
+if "Total" in estoque.columns:
+    total = pd.to_numeric(estoque["Total"], errors="coerce").sum()
+    resumo += f"Valor total do estoque: R$ {total:,.2f}\n"
+
 
 instrucoes = f"""Você é o assistente de estoque da {NOME_EMPRESA}.
 Você TEM acesso aos dados abaixo, que vieram da planilha de estoque.
