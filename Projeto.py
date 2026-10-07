@@ -17,7 +17,7 @@ from openai import OpenAI, InternalServerError, RateLimitError
 
 NOME_EMPRESA = "DpcIA"
 LOGO = "logo.png"
-iCONE= ícone.png"
+iCONE = "ícone.png"
 TEM_LOGO = os.path.exists(LOGO)
 TEM_ICONE = os.path.exists(ICONE)
 
