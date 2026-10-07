@@ -198,10 +198,9 @@ ESTOQUE ATUAL (CSV):
 # ---------- Cabeçalho ----------
 col_a, col_b = st.columns([1, 4], vertical_alignment="center")
 with col_a:
-    if TEM_LOGO:
-        st.image(LOGO, width=220)
+   
 with col_b:
-    st.title("Painel de Estoque")
+    st.title("Painel de Gerencial")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_chat = st.tabs(["📊 Painel", "💬 Assistente"])
