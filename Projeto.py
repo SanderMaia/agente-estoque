@@ -156,7 +156,8 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 
 # ---------- Barra lateral ----------
 with st.sidebar:
-    if 
+    if TEM_LOGO:
+        st.image(LOGO, use_container_width=True)
     st.caption("Painel Gerencial")
     st.divider()
     setores = sorted(d["setor"].unique())
