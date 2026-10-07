@@ -43,7 +43,7 @@ modelo_ia = OpenAI(
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 URL_CSV = st.secrets["URL_CSV"]
-MODELOS = ["gemini-3.5-flash", "gemini-3.1-flash-lite"]  # principal e reserva
+MODELOS = ["gemini-3.1-flash", "gemini-3.1-flash-lite"]  # principal e reserva
 
 @st.cache_data(ttl=60)
 def carregar_estoque():
