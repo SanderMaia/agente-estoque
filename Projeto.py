@@ -158,7 +158,7 @@ d = d[(d["produto"] != "") & (d["produto"].str.lower() != "nan")]
 with st.sidebar:
     if TEM_LOGO:
         st.image(LOGO, use_container_width=True)
-    st.caption("Estoque OficInA")
+    st.caption("Gerenciamento de Estoque com IA")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
@@ -201,7 +201,7 @@ with col_a:
     if TEM_LOGO:
         st.image(LOGO, width=220)
 with col_b:
-    st.title("Estoque - Painel de Gerencial")
+    st.title("EstoqIA - Painel de Gerencial")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_chat = st.tabs(["📊 Painel", "💬 Assistente"])
