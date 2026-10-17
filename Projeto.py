@@ -615,7 +615,7 @@ with col_a:
     if TEM_LOGO:
         st.image(logo_atual(), width=220)
 with col_b:
-    st.title("Painel de Estoque")
+    st.title("Painel Gerencial")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_mov, aba_chat = st.tabs(["📊 Painel", "📈 Movimentação", "💬 Assistente"])
