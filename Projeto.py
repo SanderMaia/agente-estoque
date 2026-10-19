@@ -1,3 +1,4 @@
+import base64
 import io
 import os
 import re
@@ -13,7 +14,9 @@ NOME_EMPRESA = "DPCNET"
 LOGO_TEMA_CLARO = "logo_tema_claro.png"    # texto escuro, para fundo claro
 LOGO_TEMA_ESCURO = "logo_tema_escuro.png"  # texto branco, para fundo escuro
 ICONE = "icone.png"
-TEM_LOGO = os.path.exists(LOGO_TEMA_CLARO) and os.path.exists(LOGO_TEMA_ESCURO)
+LOGO_SVG = "logo_dpc.svg"                  # logo original (a parte branca troca de cor com o tema)
+TEM_SVG = os.path.exists(LOGO_SVG)
+TEM_LOGO = TEM_SVG or (os.path.exists(LOGO_TEMA_CLARO) and os.path.exists(LOGO_TEMA_ESCURO))
 TEM_ICONE = os.path.exists(ICONE)
 VERDE = "#3ec252"
 VERMELHO = "#e5484d"
@@ -28,6 +31,52 @@ def logo_atual():
     except Exception:
         escuro = False
     return LOGO_TEMA_ESCURO if escuro else LOGO_TEMA_CLARO
+
+
+@st.cache_data
+def camadas_logo(caminho):
+    """Separa o SVG em duas camadas: a verde (fixa) e a que era branca (muda com o tema).
+    Retorna (verde_base64, variavel_base64, proporcao)."""
+    svg = open(caminho, encoding="utf-8").read()
+    svg = re.sub(r"<\?xml[^>]*\?>\s*", "", svg)
+    svg = re.sub(r"<svg\b[^>]*>", lambda m: re.sub(r'\s(?:width|height)="[^"]*"', "", m.group(0)),
+                 svg, count=1)  # o tamanho vem só do viewBox
+    cls = re.search(r"\.(cls-\d+)\s*\{[^}]*fill:\s*(?:#fff(?:fff)?|white)\s*;", svg, re.I)
+    vb = re.search(r'viewBox="\s*[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)\s*"', svg)
+    if not cls or not vb:
+        raise ValueError("SVG fora do formato esperado")
+    marca = f'class="{cls.group(1)}"'
+    elementos = re.findall(r"<(?:path|polygon)\b[^>]*?/>", svg, flags=re.S)
+    verde, variavel = svg, svg
+    for e in elementos:
+        if marca in e:
+            verde = verde.replace(e, "")
+        else:
+            variavel = variavel.replace(e, "")
+    variavel = re.sub(r"(\." + cls.group(1) + r"\s*\{[^}]*fill:\s*)[^;]+;", r"\g<1>#000;", variavel)
+    b64 = lambda t: base64.b64encode(t.encode("utf-8")).decode("ascii")
+    return b64(verde), b64(variavel), float(vb.group(1)) / float(vb.group(2))
+
+
+def mostrar_logo(largura=240):
+    """Mostra a logo. A parte que era branca usa a cor do texto do tema (escura no tema claro,
+    clara no tema escuro), então a logo muda na hora, sem recarregar a página."""
+    if TEM_SVG:
+        try:
+            verde, variavel, prop = camadas_logo(LOGO_SVG)
+            mascara = f"url('data:image/svg+xml;base64,{variavel}') no-repeat center/contain"
+            st.html(
+                f'<div style="position:relative;width:100%;max-width:{largura}px;aspect-ratio:{prop:.4f};">'
+                f'<div style="position:absolute;inset:0;background-color:currentColor;'
+                f'-webkit-mask:{mascara};mask:{mascara};"></div>'
+                f'<div style="position:absolute;inset:0;'
+                f"background:url('data:image/svg+xml;base64,{verde}') no-repeat center/contain;\"></div>"
+                f"</div>"
+            )
+            return
+        except Exception:
+            pass  # cai para as imagens PNG
+    st.image(logo_atual(), width=largura)
 
 
 st.set_page_config(
@@ -272,10 +321,12 @@ def preparar_movimentos(bruto_m, base_prod, origem, tipo_fixo=None):
     return mov.reset_index(drop=True), avisos, diag
 
 
-def estoque_por_dia(mov, qtd_atual, hoje):
-    """Reconstrói a quantidade de cada produto no FIM de cada dia, andando para trás
-    a partir da quantidade atual da aba bi.
-    Retorna (qtd_dia, net_dia): tabelas dia x produto."""
+def estoque_por_dia(mov, qtd_atual, unit, total_atual, hoje):
+    """Reconstrói, para o FIM de cada dia, a quantidade e o valor de cada produto, andando para
+    trás a partir do estoque atual da aba bi.
+    O valor parte do TOTAL ATUAL (coluna Total da bi) e só desfaz o valor das movimentações
+    posteriores (quantidade x valor unitário). Assim, hoje o valor é exatamente o da bi.
+    Retorna (qtd_dia, net_dia, valor_dia): tabelas dia x produto."""
     ini = min(mov["dia"].min(), hoje)
     fim = max(hoje, mov["dia"].max())
     dias = pd.date_range(ini, fim, freq="D")
@@ -283,7 +334,10 @@ def estoque_por_dia(mov, qtd_atual, hoje):
               .reindex(index=dias, columns=qtd_atual.index).fillna(0.0))
     depois = net.iloc[::-1].cumsum().iloc[::-1].shift(-1).fillna(0.0)  # movimentos após o dia
     qtd_dia = depois.mul(-1.0).add(qtd_atual, axis=1)
-    return qtd_dia, net
+    unit = unit.reindex(qtd_atual.index).fillna(0.0)
+    total_atual = total_atual.reindex(qtd_atual.index).fillna(0.0)
+    valor_dia = depois.mul(unit, axis=1).mul(-1.0).add(total_atual, axis=1)
+    return qtd_dia, net, valor_dia
 
 
 def serie_diaria(mov_p, dias, coluna):
@@ -323,12 +377,12 @@ def texto_periodo(m, nome, a, b, limite):
     return t + linhas_periodo(m, limite)
 
 
-def contexto_movimentos(mov, qtd_dia, base_prod, hoje, p_ini, p_fim, dia_sel):
+def contexto_movimentos(mov, qtd_dia, valor_dia_prod, base_prod, hoje, p_ini, p_fim, dia_sel):
     """Texto com a movimentação por data, para a IA responder perguntas com datas."""
     if mov is None or mov.empty:
         return ""
     unit = base_prod["unit"]
-    valor_dia = qtd_dia.mul(unit, axis=1).sum(axis=1)
+    valor_dia = valor_dia_prod.sum(axis=1)
     ini_semana = hoje - pd.Timedelta(days=hoje.weekday())
     t = (f"\nHOJE é {DIAS_SEMANA[hoje.weekday()]}, {dmy(hoje)}. As movimentações com data (entradas "
          f"lançadas na planilha e saídas do formulário) vão de {dmy(mov['dia'].min())} a {dmy(mov['dia'].max())}.\n"
@@ -340,7 +394,7 @@ def contexto_movimentos(mov, qtd_dia, base_prod, hoje, p_ini, p_fim, dia_sel):
     if dia_sel in qtd_dia.index:
         q = qtd_dia.loc[dia_sel]
         m_dia = mov[mov["dia"] == dia_sel]
-        t += (f"Valor do estoque ao fim desse dia: {brl(float((q * unit).sum()))}; "
+        t += (f"Valor do estoque ao fim desse dia: {brl(float(valor_dia.loc[dia_sel]))}; "
               f"unidades em estoque: {un(q.sum())}; "
               f"entradas do dia {brl(m_dia.loc[m_dia['tipo'] == 'Entrada', 'valor'].sum())}; "
               f"saídas do dia {brl(m_dia.loc[m_dia['tipo'] == 'Saída', 'valor'].sum())}.\n")
@@ -389,7 +443,8 @@ def abrir_resposta(mensagens):
 def texto_do_stream(stream):
     for pedaco in stream:
         if pedaco.choices and pedaco.choices[0].delta.content:
-            yield pedaco.choices[0].delta.content
+            # o Streamlit trata $...$ como fórmula matemática e bagunça "R$ 1.000 ... R$ 2.000"
+            yield pedaco.choices[0].delta.content.replace("$", "\\$")
 
 
 # ---------- Dados: lê TODAS as colunas da aba bi ----------
@@ -464,6 +519,14 @@ base_prod = d.drop_duplicates("chave").set_index("chave")
 
 HOJE = pd.Timestamp.now(tz="America/Sao_Paulo").tz_localize(None).normalize()
 
+_soma_total = float(d["total"].sum())
+_soma_qu = float((d["qtd"] * d["unit"]).sum())
+AVISO_TOTAL = ""
+if _soma_total and abs(_soma_total - _soma_qu) / abs(_soma_total) > 0.01:
+    AVISO_TOTAL = (f"A soma da coluna Total da aba bi ({brl(_soma_total)}) é diferente de "
+                   f"Quantidade × Valor Unitario ({brl(_soma_qu)}). O valor do estoque usa a coluna Total; "
+                   "as movimentações usam Quantidade × Valor Unitario. Confira essas colunas na planilha.")
+
 # ---------- Movimentações com data: entradas (aba lancamentos) + saídas (formulário) ----------
 mov = None
 avisos_lanc = []
@@ -485,7 +548,8 @@ for url_, origem_, tipo_fixo_ in FONTES:
         erros_fontes.append(f"{origem_}: {type(e).__name__}: {str(e)[:150].replace(url_, '[link]')}")
 if partes:
     mov = pd.concat(partes, ignore_index=True)
-    qtd_dia_all, net_dia_all = estoque_por_dia(mov, base_prod["qtd"], HOJE)
+    qtd_dia_all, net_dia_all, valor_dia_all = estoque_por_dia(
+        mov, base_prod["qtd"], base_prod["unit"], base_prod["total"], HOJE)
 
 # ---------- Histórico diário (aba "historico", opcional) ----------
 historico = pd.DataFrame()
@@ -500,7 +564,7 @@ if URL_HIST:
 p_ini = p_fim = dia_sel = None
 with st.sidebar:
     if TEM_LOGO:
-        st.image(logo_atual(), width="stretch")
+        mostrar_logo(240)
     st.caption("Painel de estoque com IA")
     st.divider()
     setores = sorted(d["setor"].unique())
@@ -543,7 +607,8 @@ if mov is not None:
     qtd_dia_f = qtd_dia_all[chaves_f]
     net_dia_f = net_dia_all[chaves_f]
     unit_f = base_prod.loc[chaves_f, "unit"]
-    valor_dia_f = qtd_dia_f.mul(unit_f, axis=1).sum(axis=1)
+    valor_dia_prod_f = valor_dia_all[chaves_f]
+    valor_dia_f = valor_dia_prod_f.sum(axis=1)
     dias_p = pd.date_range(p_ini, p_fim, freq="D")
     mov_p = mov_f[(mov_f["dia"] >= p_ini) & (mov_f["dia"] <= p_fim)]
 
@@ -567,7 +632,7 @@ resumo += "Soma de cada coluna numérica da tabela:\n"
 for c in colunas_numericas:
     resumo += f"- {c}: {tudo[c].sum():,.2f}\n"
 
-bloco_lanc = (contexto_movimentos(mov, qtd_dia_all, base_prod, HOJE, p_ini, p_fim, dia_sel)
+bloco_lanc = (contexto_movimentos(mov, qtd_dia_all, valor_dia_all, base_prod, HOJE, p_ini, p_fim, dia_sel)
               if mov is not None else "")
 
 bloco_hist = ""
@@ -613,9 +678,9 @@ ESTOQUE ATUAL (CSV, todas as colunas):
 col_a, col_b = st.columns([1, 4], vertical_alignment="center")
 with col_a:
     if TEM_LOGO:
-        st.image(logo_atual(), width=220)
+        mostrar_logo(220)
 with col_b:
-    st.title("Painel Gerencial")
+    st.title("Painel de Estoque")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_mov, aba_chat = st.tabs(["📊 Painel", "📈 Movimentação", "💬 Assistente"])
@@ -788,8 +853,8 @@ with aba_mov:
         # ----- Como estávamos em um dia -----
         st.markdown(f"**Como estávamos em {dmy(dia_sel)}**")
         qtd_fim = qtd_dia_f.loc[dia_sel]
-        valor_fim = float((qtd_fim * unit_f).sum())
-        valor_ant = float(((qtd_fim - net_dia_f.loc[dia_sel]) * unit_f).sum())
+        valor_fim = float(valor_dia_f.loc[dia_sel])
+        valor_ant = valor_fim - float((net_dia_f.loc[dia_sel] * unit_f).sum())  # valor ao fim do dia anterior
         m_dia = mov_f[mov_f["dia"] == dia_sel]
         e_dia = m_dia.loc[m_dia["tipo"] == "Entrada", "valor"].sum()
         s_dia = m_dia.loc[m_dia["tipo"] == "Saída", "valor"].sum()
@@ -805,7 +870,7 @@ with aba_mov:
             "Produto": base_prod.loc[chaves_f, "produto"].values,
             "Setor": base_prod.loc[chaves_f, "setor"].values,
             "Qtd ao fim do dia": qtd_fim.values,
-            "Valor (R$)": (qtd_fim * unit_f).values,
+            "Valor (R$)": valor_dia_prod_f.loc[dia_sel].values,
         }, index=chaves_f.values)
         tab["Entraram (un)"] = m_dia[m_dia["tipo"] == "Entrada"].groupby("chave")["qtd"].sum()
         tab["Saíram (un)"] = m_dia[m_dia["tipo"] == "Saída"].groupby("chave")["qtd"].sum()
@@ -913,8 +978,10 @@ with aba_mov:
         elif not erros_fontes:
             st.info("As fontes foram lidas, mas ainda não têm registros válidos.")
 
-    if avisos_lanc or diags or erros_fontes:
-        with st.expander(f"⚠️ Conferência das fontes de dados ({len(avisos_lanc) + len(erros_fontes)} aviso(s))"):
+    if avisos_lanc or diags or erros_fontes or AVISO_TOTAL:
+        with st.expander(f"⚠️ Conferência das fontes de dados ({len(avisos_lanc) + len(erros_fontes) + (1 if AVISO_TOTAL else 0)} aviso(s))"):
+            if AVISO_TOTAL:
+                st.warning(AVISO_TOTAL)
             for e_ in erros_fontes:
                 st.error(e_)
             for a_ in avisos_lanc:
@@ -1005,7 +1072,8 @@ with aba_chat:
             with st.spinner("Consultando o estoque..."):
                 stream, usado, erros = abrir_resposta(
                     [{"role": "system", "content": instrucoes}]
-                    + st.session_state["lista_mensagens"])
+                    + [{"role": m_["role"], "content": m_["content"].replace("\\$", "$")}
+                       for m_ in st.session_state["lista_mensagens"]])
             if stream is None:
                 st.warning("A IA não respondeu agora. Tente de novo em alguns minutos.")
                 st.code("\n".join(erros[-6:]))
