@@ -91,11 +91,11 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .block-container {padding-top: 1.5rem;}
-    div[data-testid="stMetric"] {
+    div[data-testid="st"] {
         background: #F0F4F2; border-radius: 12px; padding: 14px 16px;
         border-left: 5px solid #3ec252;
     }
-    div[data-testid="stMetric"] * {color: #1A1A1A !important;}
+    div[data-testid="st"] * {color: #1A1A1A !important;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -690,9 +690,9 @@ with aba_painel:
     zerados = df_f[df_f["qtd"] <= 0]
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Valor do estoque", brl(df_f["total"].sum()))
-    k2.metric("Produtos", f"{len(df_f)}")
+    k1, k2, k3, k4, k5 = st.columns(6,3,3,2,3)
+    k1.("Valor do estoque", brl(df_f["total"].sum()))
+    k2.("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", un(df_f["qtd"].sum()))
     k4.metric("Zerados", f"{len(zerados)}")
     k5.metric("Estoque baixo", f"{len(baixos)}")
