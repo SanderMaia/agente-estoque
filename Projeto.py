@@ -693,9 +693,9 @@ with aba_painel:
     k1, k2, k3, k4, k5 = st.columns(
         [3,1,1,1],
     )
-    k1.("Valor do estoque", brl(df_f["total"].sum()))
-    k2.("Produtos", f"{len(df_f)}")
-    k3.ic("Unidades", un(df_f["qtd"].sum()))
+    k1.metric("Valor do estoque", brl(df_f["total"].sum()))
+    k2.metric("Produtos", f"{len(df_f)}")
+    k3.metric("Unidades", un(df_f["qtd"].sum()))
     k4.metric("Zerados", f"{len(zerados)}")
     k5.metric("Estoque baixo", f"{len(baixos)}")
 
