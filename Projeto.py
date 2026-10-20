@@ -691,9 +691,9 @@ with aba_painel:
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
     k1, k2, k3, k4, k5 = st.columns(
-        [3,1,1,1],
+        [3,1,1,1,1],
     )
-    k1.metric("Valor do estoque", brl(df_f["total"].sum()))
+    k1.("Valor do estoque", brl(df_f["total"].sum()))
     k2.metric("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", un(df_f["qtd"].sum()))
     k4.metric("Zerados", f"{len(zerados)}")
