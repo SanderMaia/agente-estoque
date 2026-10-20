@@ -80,7 +80,7 @@ def mostrar_logo(largura=240):
 
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | Painel de Estoque",
+    page_title=f"{NOME_EMPRESA} | Painel Gerencial de Estoque",
     page_icon=ICONE if TEM_ICONE else "🚚",
     layout="wide",
 )
@@ -565,7 +565,7 @@ p_ini = p_fim = dia_sel = None
 with st.sidebar:
     if TEM_LOGO:
         mostrar_logo(240)
-    st.caption("Painel de estoque com IA")
+    st.caption("EstoqIA")
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
@@ -680,7 +680,7 @@ with col_a:
     if TEM_LOGO:
         mostrar_logo(220)
 with col_b:
-    st.title("Painel de Estoque")
+    st.title("Painel Gerencial de Estoque")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_mov, aba_chat = st.tabs(["📊 Painel", "📈 Movimentação", "💬 Assistente"])
