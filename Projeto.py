@@ -60,7 +60,7 @@ def camadas_logo(caminho):
     return b64(verde), b64(variavel), float(vb.group(1)) / float(vb.group(2))
 
 
-def mostrar_logo(largura=240):
+def mostrar_logo(largura=240, centro=False):
     """Mostra a logo. A parte que era branca usa a cor do texto do tema (escura no tema claro,
     clara no tema escuro), então a logo muda na hora, sem recarregar a página."""
     if TEM_SVG:
@@ -68,7 +68,8 @@ def mostrar_logo(largura=240):
             verde, variavel, prop = camadas_logo(LOGO_SVG)
             mascara = f"url('data:image/svg+xml;base64,{variavel}') no-repeat center/contain"
             st.html(
-                f'<div style="position:relative;width:100%;max-width:{largura}px;aspect-ratio:{prop:.4f};">'
+                f'<div style="position:relative;width:100%;max-width:{largura}px;aspect-ratio:{prop:.4f};'
+                f'{"margin:0 auto;" if centro else ""}">'
                 f'<div style="position:absolute;inset:0;background-color:currentColor;'
                 f'-webkit-mask:{mascara};mask:{mascara};"></div>'
                 f'<div style="position:absolute;inset:0;'
@@ -78,7 +79,12 @@ def mostrar_logo(largura=240):
             return
         except Exception:
             pass  # cai para as imagens PNG
-    st.image(logo_atual(), width=largura)
+    if centro:
+        _, meio, _ = st.columns([1, 3, 1])
+        with meio:
+            st.image(logo_atual(), width="stretch")
+    else:
+        st.image(logo_atual(), width=largura)
 
 
 st.set_page_config(
@@ -164,11 +170,13 @@ def exigir_login():
             return
 
     cadastrados = st.secrets.get("usuarios", {})
-    _, centro, _ = st.columns([1, 2, 1])
+    st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)   # evita cortar a logo no topo
+    _, centro, _ = st.columns([1, 1.4, 1])
     with centro:
         if TEM_LOGO:
-            mostrar_logo(260)
-        st.subheader("Acesso restrito")
+            mostrar_logo(280, centro=True)
+        st.markdown("<h3 style='text-align:center;margin:0.5rem 0 1rem'>Acesso restrito</h3>",
+                    unsafe_allow_html=True)
         if st.session_state.get("aviso_login"):
             st.info(st.session_state["aviso_login"])
         if not cadastrados:
