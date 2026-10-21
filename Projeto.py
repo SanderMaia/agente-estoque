@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 import io
 import os
 import re
@@ -80,7 +82,7 @@ def mostrar_logo(largura=240):
 
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | Painel Gerencial de Estoque",
+    page_title=f"{NOME_EMPRESA} | Painel de Estoque",
     page_icon=ICONE if TEM_ICONE else "🚚",
     layout="wide",
 )
@@ -91,16 +93,114 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .block-container {padding-top: 1.5rem;}
-    div[data-testid="st"] {
+    div[data-testid="stMetric"] {
         background: #F0F4F2; border-radius: 12px; padding: 14px 16px;
         border-left: 5px solid #3ec252;
     }
-    div[data-testid="st"] * {color: #1A1A1A !important;}
+    div[data-testid="stMetric"] * {color: #1A1A1A !important;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+
+# ---------- Login (usuário e senha) ----------
+# Usuários ficam nos Secrets, no bloco [usuarios], com a senha em formato protegido (hash).
+# Sem usuários cadastrados, o app NÃO abre (fica trancado).
+LOGIN_MAX_TENTATIVAS = 5      # erros seguidos antes de bloquear o usuário
+LOGIN_BLOQUEIO_S = 300        # tempo de bloqueio (5 minutos)
+SENHA_FALSA = "pbkdf2_sha256$600000$" + "00" * 16 + "$" + "00" * 32   # gasta o mesmo tempo com usuário inexistente
+
+
+@st.cache_resource
+def _registro_tentativas():
+    return {}
+
+
+def _estado_tentativas(usuario):
+    reg = _registro_tentativas()
+    if len(reg) > 1000:
+        reg.clear()
+    return reg.setdefault(usuario[:64], {"falhas": [], "ate": 0.0})
+
+
+def _bloqueio_restante(usuario):
+    ate = _estado_tentativas(usuario)["ate"]
+    return int(ate - time.time()) + 1 if ate > time.time() else 0
+
+
+def _registrar_falha(usuario):
+    e = _estado_tentativas(usuario)
+    agora = time.time()
+    e["falhas"] = [t for t in e["falhas"] if agora - t < LOGIN_BLOQUEIO_S] + [agora]
+    if len(e["falhas"]) >= LOGIN_MAX_TENTATIVAS:
+        e["ate"] = agora + LOGIN_BLOQUEIO_S
+        e["falhas"] = []
+
+
+def _senha_confere(informada, guardada):
+    guardada = str(guardada)
+    if guardada.startswith("pbkdf2_sha256$"):
+        try:
+            _, it, sal, ref = guardada.split("$")
+            calc = hashlib.pbkdf2_hmac("sha256", informada.encode("utf-8"), bytes.fromhex(sal), int(it))
+            return hmac.compare_digest(calc.hex(), ref)
+        except Exception:
+            return False
+    # senha em texto simples (formato antigo): ainda aceita, mas troque por hash
+    return hmac.compare_digest(informada.encode("utf-8"), guardada.encode("utf-8"))
+
+
+def exigir_login():
+    """Mostra a tela de login e interrompe o app até a senha estar correta."""
+    timeout_min = int(st.secrets.get("LOGIN_TIMEOUT_MIN", 60))
+    agora = time.time()
+    if st.session_state.get("usuario"):
+        if agora - st.session_state.get("ultima_atividade", agora) > timeout_min * 60:
+            st.session_state.clear()
+            st.session_state["aviso_login"] = "Sessão encerrada por inatividade. Entre novamente."
+        else:
+            st.session_state["ultima_atividade"] = agora
+            return
+
+    cadastrados = st.secrets.get("usuarios", {})
+    _, centro, _ = st.columns([1, 2, 1])
+    with centro:
+        if TEM_LOGO:
+            mostrar_logo(260)
+        st.subheader("Acesso restrito")
+        if st.session_state.get("aviso_login"):
+            st.info(st.session_state["aviso_login"])
+        if not cadastrados:
+            st.error("O login ainda não foi configurado: cadastre os usuários no bloco [usuarios] dos Secrets.")
+            st.stop()
+        with st.form("login"):
+            usuario = st.text_input("Usuário").strip().lower()
+            senha = st.text_input("Senha", type="password")
+            entrar = st.form_submit_button("Entrar", width="stretch")
+        if entrar:
+            espera = _bloqueio_restante(usuario)
+            if espera:
+                st.error(f"Muitas tentativas erradas. Tente de novo em {espera // 60 + 1} minuto(s).")
+            else:
+                guardada = cadastrados.get(usuario)
+                confere = _senha_confere(senha, guardada if guardada else SENHA_FALSA)
+                if guardada and confere:
+                    _estado_tentativas(usuario).update({"falhas": [], "ate": 0.0})
+                    st.session_state.clear()
+                    st.session_state["usuario"] = usuario
+                    st.session_state["ultima_atividade"] = time.time()
+                    print(f"[login] entrou: {usuario}")
+                    st.rerun()
+                else:
+                    _registrar_falha(usuario)
+                    print(f"[login] senha incorreta para: {usuario[:30]!r}")
+                    time.sleep(1.0)
+                    st.error("Usuário ou senha incorretos.")
+    st.stop()
+
+
+exigir_login()
 
 URL_CSV = st.secrets["URL_CSV"]
 URL_HIST = st.secrets.get("URL_HISTORICO", "")
@@ -565,7 +665,11 @@ p_ini = p_fim = dia_sel = None
 with st.sidebar:
     if TEM_LOGO:
         mostrar_logo(240)
-    st.caption("EstoqIA")
+    st.caption("Painel de estoque com IA")
+    st.caption(f"👤 {st.session_state['usuario']}")
+    if st.button("🚪 Sair", width="stretch"):
+        st.session_state.clear()
+        st.rerun()
     st.divider()
     setores = sorted(d["setor"].unique())
     sel = st.multiselect("Setor", setores, default=setores)
@@ -680,7 +784,7 @@ with col_a:
     if TEM_LOGO:
         mostrar_logo(220)
 with col_b:
-    st.title("Painel Gerencial de Estoque")
+    st.title("Painel de Estoque")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_mov, aba_chat = st.tabs(["📊 Painel", "📈 Movimentação", "💬 Assistente"])
@@ -690,9 +794,7 @@ with aba_painel:
     zerados = df_f[df_f["qtd"] <= 0]
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
-    k1, k2, k3, k4, k5 = st.columns(
-        [3,1,1,1,1],
-    )
+    k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Valor do estoque", brl(df_f["total"].sum()))
     k2.metric("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", un(df_f["qtd"].sum()))
