@@ -88,7 +88,7 @@ def mostrar_logo(largura=240, centro=False):
 
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | Painel de Estoque",
+    page_title=f"{NOME_EMPRESA} | ",
     page_icon=ICONE if TEM_ICONE else "🚚",
     layout="wide",
 )
@@ -792,7 +792,7 @@ with col_a:
     if TEM_LOGO:
         mostrar_logo(220)
 with col_b:
-    st.title("Painel de Estoque")
+    st.title("Painel Gerencial de Estoque")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_mov, aba_chat = st.tabs(["📊 Painel", "📈 Movimentação", "💬 Assistente"])
