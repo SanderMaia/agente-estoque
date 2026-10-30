@@ -12,7 +12,7 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI
 
-NOME_EMPRESA = "DpcIA"
+NOME_EMPRESA = "DPCNET"
 LOGO_TEMA_CLARO = "logo_tema_claro.png"    # texto escuro, para fundo claro
 LOGO_TEMA_ESCURO = "logo_tema_escuro.png"  # texto branco, para fundo escuro
 ICONE = "icone.png"
@@ -86,13 +86,9 @@ def mostrar_logo(largura=240, centro=False):
     else:
         st.image(logo_atual(), width=largura)
 
-NOME_EMPRESA = "DpcIA"
-LOGO = "logo.png"
-ICONE = "icone.png"
-TEM_LOGO = os.path.exists(LOGO)
 
 st.set_page_config(
-    page_title=f"{NOME_EMPRESA} | ",
+    page_title=f"{NOME_EMPRESA} | Painel de Estoque",
     page_icon=ICONE if TEM_ICONE else "🚚",
     layout="wide",
 )
@@ -796,7 +792,7 @@ with col_a:
     if TEM_LOGO:
         mostrar_logo(220)
 with col_b:
-    st.title("Painel Gerencial de Estoque")
+    st.title("Painel de Estoque")
     st.caption("Indicadores em tempo real e assistente com IA.")
 
 aba_painel, aba_mov, aba_chat = st.tabs(["📊 Painel", "📈 Movimentação", "💬 Assistente"])
@@ -806,10 +802,7 @@ with aba_painel:
     zerados = df_f[df_f["qtd"] <= 0]
     baixos = df_f[(df_f["qtd"] > 0) & (df_f["qtd"] <= limite)]
 
-    k1, k2, k3, k4, k5 = st.columns(
-        [2.2,1,1,1,1],
-        gap="small"
-    )
+    k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Valor do estoque", brl(df_f["total"].sum()))
     k2.metric("Produtos", f"{len(df_f)}")
     k3.metric("Unidades", un(df_f["qtd"].sum()))
