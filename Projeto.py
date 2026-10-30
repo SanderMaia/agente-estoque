@@ -12,7 +12,7 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI
 
-NOME_EMPRESA = "DPCNET"
+NOME_EMPRESA = "DpcIA"
 LOGO_TEMA_CLARO = "logo_tema_claro.png"    # texto escuro, para fundo claro
 LOGO_TEMA_ESCURO = "logo_tema_escuro.png"  # texto branco, para fundo escuro
 ICONE = "icone.png"
