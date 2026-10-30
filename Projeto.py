@@ -86,13 +86,10 @@ def mostrar_logo(largura=240, centro=False):
     else:
         st.image(logo_atual(), width=largura)
 
-<<<<<<< HEAD
-=======
 NOME_EMPRESA = "DpcIA"
 LOGO = "logo.png"
 ICONE = "icone.png"
 TEM_LOGO = os.path.exists(LOGO)
->>>>>>> 8abc3dc (Backup atualizado do sistema de estoque)
 
 st.set_page_config(
     page_title=f"{NOME_EMPRESA} | ",
